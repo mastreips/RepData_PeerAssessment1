@@ -22,8 +22,17 @@ The data was loaded from the "activity.csv" file using the `read.csv()` command 
 
 
 ```r
-data<-read.csv("activity.csv")
-data$date <- as.Date(data$date)
+data_tmp<-read.csv("activity.csv")
+data_tmp$date <- as.Date(data_tmp$date)
+```
+
+We then must find the total number of steps taken by day intervals.
+
+
+```r
+data <- aggregate(data_tmp$steps , 
+               list(date = cut(as.Date(data_tmp$date), 
+                              breaks="1 day")), FUN=sum)
 ```
 
 ###What is the mean total number of steps taken per day?###
@@ -32,35 +41,38 @@ For this part of the report, we ignore the missing values in the dataset.
 
 
 ```r
-hist(data$steps, main="Histogram of Total Number\n of Steps Taken per Day", 
-     xlab="Steps Taken per Day")
+hist(data$x, main="Histogram of Total Number\n of Steps Taken per Day", 
+     xlab="Steps Taken per Day",
+     breaks = 20,
+     xlim= c(0,25000),
+     ylim= c(0,20))
 ```
 
-![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3-1.png) 
+![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png) 
 
-The `summary()` command is used calculate the median and mean **total** number of steps taken per day (0.00 and 37.38 respectively). 
+The `summary()` command is used calculate the median and mean **total** number of steps taken per day (10,760 and 10,770 respectively). 
 
 ```r
-summary(data$steps)
+summary(data$x)
 ```
 
 ```
 ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's 
-##    0.00    0.00    0.00   37.38   12.00  806.00    2304
+##      41    8841   10760   10770   13290   21190       8
 ```
 
 ###What is the average daily activity pattern?###
 using the `aggregate()` command, we calculate the mean of steps for each interval.
 
 ```r
-data_avg <- aggregate(steps~interval, data=data, FUN= "mean")
+data_avg <- aggregate(steps~interval, data=data_tmp, FUN= "mean")
 plot(data_avg$interval, data_avg$steps, type="l", 
      main="Average Daily Activity Pattern\nby 5-Minute Intervals", 
      xlab="5 Minute Invervals",
      ylab="Average Number of Steps Across All Days")
 ```
 
-![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5-1.png) 
+![plot of chunk unnamed-chunk-6](figure/unnamed-chunk-6-1.png) 
 
 We use this funky looking command to determine which 5-minute interval average contains the maximum number of steps (835). 
 
@@ -77,7 +89,7 @@ data_avg[which.max(data_avg$steps),]
 The total number of missing values calculated by variable (2304):
 
 ```r
-summary(is.na(data))
+summary(is.na(data_tmp))
 ```
 
 ```
@@ -91,9 +103,9 @@ The mean for each 5-minute interval is used to fill missing values using the `dd
 
 ```r
 impute.mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
-data_new2 <- ddply(data, ~ interval, transform, steps = impute.mean(steps))
-data_new3 <- arrange(data_new2, date, interval)
-head(data_new3, 5)
+data_new <- ddply(data_tmp, ~ interval, transform, steps = impute.mean(steps))
+data_new2 <- arrange(data_new, date, interval)
+head(data_new2, 5)
 ```
 
 ```
@@ -104,25 +116,38 @@ head(data_new3, 5)
 ## 4 0.1509434 2012-10-01       15
 ## 5 0.0754717 2012-10-01       20
 ```
+As before, we must `aggregate()` the values of the new data set by day.
 
-As we see from the histogram of the newly created dataset and from the data summary that the data has changed reflecting more steps taken in total (3rd Qu. jumped from 12.0 to 27.0 steps), but the mean and median for the overall dataset remained the same.
+```r
+data_new3 <- aggregate(data_new2$steps , 
+                  list(date = cut(as.Date(data_new2$date), 
+                                  breaks="1 day")), FUN=sum)
+```
+As we see from the histogram of the new data set, the frequency of the mean total daily steps is increased - since the mean of the 5-min intervals summed on a daily basis will be the mean of total daily steps.
 
 
 ```r
-hist(data_new3$steps, main="Histogram of Total Number\n of Steps Taken per Day", 
-     xlab="Steps Taken per Day")
+hist(data_new3$x,
+     main="Histogram of Total Number\n of Steps Taken per Day", 
+     xlab="Steps Taken per Day",
+     breaks = 20,
+     xlim= c(0,25000),
+     ylim= c(0,20)
+     )
 ```
 
-![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9-1.png) 
-
+![plot of chunk unnamed-chunk-11](figure/unnamed-chunk-11-1.png) 
+  
+  
+Because of the imputed values, the mean stays the same, but the median changes (now both mean and median are 10,770).
 
 ```r
-summary(data_new3$steps)
+summary(data_new3$x)
 ```
 
 ```
 ##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-##    0.00    0.00    0.00   37.38   27.00  806.00
+##      41    9819   10770   10770   12810   21190
 ```
 
 ###Differences in Activity between Weekdays and Weekends###
@@ -131,10 +156,10 @@ There is likely a more elegant way of processing the data, but I decided to sepa
 **Separating Weekdays from Weekends**  
   
 
-Using the `mutate()` command in combination with `isWeekday()` from the `tableDate` library I separate each interval into two groups:
+Using the `mutate()` command in combination with `isWeekday()` from the `tableDate` library on the new dataset, I separate each interval into two groups:
 
 ```r
-data_new5 <- mutate(data_new3, weekday=isWeekday(date))
+data_new5 <- mutate(data_new2, weekday=isWeekday(date))
 data_wkdy <- filter(data_new5, weekday==TRUE)
 data_wknd <- filter(data_new5, weekday==FALSE)
 head(data_wkdy, 5)
@@ -203,4 +228,4 @@ xyplot(steps ~ interval | daytype, data= mergedData, layout = c(1,2), type="l",
        ylab= "Average Number of Steps Across All Days")
 ```
 
-![plot of chunk unnamed-chunk-14](figure/unnamed-chunk-14-1.png) 
+![plot of chunk unnamed-chunk-16](figure/unnamed-chunk-16-1.png) 
